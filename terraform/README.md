@@ -59,7 +59,7 @@ It will setup:
     ]
 }
 ```
-#### (2) create aws s3 bucket manually then modify the bucket value in main.tf file
+#### (2) create aws s3 bucket manually then modify the "backend" values with bucket name in main.tf file.
 
 #### (3) set variable "ecs_cluster_name". it would be the name of created ecs cluster.
 

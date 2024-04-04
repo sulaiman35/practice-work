@@ -1,0 +1,90 @@
+stages:
+  - build
+  - deploy
+  - security
+
+variables:
+  # Replace with your desired AWS region
+  AWS_REGION: "eu-west-1,us-east-1"
+  # Replace with your ECR repository URI
+  ECR_REPOSITORY_URI: "041027301676.dkr.ecr.eu-west-1.amazonaws.com/practice-test-fe-ecr"
+  # Replace with your AWS credentials or IAM role with ECR and ECS access
+  AWS_ACCESS_KEY_ID: "<access_key>"
+  AWS_SECRET_ACCESS_KEY: "<secret_access_key>"
+  # Replace with your ECS cluster and service names
+  ECS_CLUSTER_NAME: "practice-test"
+  ECS_SERVICE_NAME: "practice-fe-test-sv"
+
+image: maven:3.8.4-openjdk-11-slim
+
+services:
+  - docker:dind  # Docker service for building and scanning images
+
+cache:
+  paths:
+    - ~/.m2/repository  # Cache Maven repository
+
+before_script:
+  - echo $CI_JOB_TOKEN | AWS configure set aws_access_key_id -
+  - echo $CI_JOB_TOKEN | AWS configure set aws_secret_access_key -
+  - echo $CI_JOB_TOKEN | docker login -u $CI_USERNAME -p $CI_PASSWORD docker.io  # Login to Docker registry if pushing images
+
+build:
+  stage: build
+  script:
+    - docker build -t $ECR_REPOSITORY_URI:latest .  # Assuming dockerfile_java exists
+    - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPOSITORY_URI
+    - docker push $ECR_REPOSITORY_URI:latest
+
+deploy:
+  stage: deploy
+  script:
+    - for region in $REGIONS; do
+        export AWS_REGION=$region
+
+      # ECS Deployment
+      - aws ecs register-task-definition --family $ECS_SERVICE_NAME \
+        --cli-capabilities FULL_CODE \
+        --network-mode awsvpc \
+        --requires-compatibilities FARGATE \
+        --cpu "256" --memory "512" \
+        --region $region \
+        --container-definitions '[{
+          "name": "$ECS_SERVICE_NAME",
+          "image": "$ECR_REPOSITORY_URI:latest",
+          "portMappings": [{"containerPort": 3000}],
+          "logConfiguration": {
+            "logDrivers": [
+              {
+                "name": "awslogs",
+                "options": {
+                  "awslogs-group": "/ecs/$ECS_CLUSTER_NAME/$ECS_SERVICE_NAME",  # Custom log group name
+                  "awslogs-region": $AWS_REGION,
+                  "awslogs-stream-prefix": "ecs-$SERVICE_NAME",  # Custom log stream prefix
+                  "file": "/var/log/container.log"  # Adjust log file if needed
+                }
+              }
+            ]
+          }
+        }]'
+
+      - aws ecs update-service --cluster $ECS_CLUSTER_NAME \
+        --service $ECS_SERVICE_NAME \
+        --desired-count 1 \
+        --task-definition $ECS_SERVICE_NAME:latest
+      done 
+
+
+  only:
+    - master  # Run deployment only on pushes to the master branch (adjust as needed)
+
+security:
+  stage: security
+  script:
+    - spotbugs -failOn > 5 .  # Run SpotBugs and fail if > 5 critical/high findings
+    # Alternatively, you can log findings and not fail the job:
+    # - spotbugs .
+
+# Uncomment and adjust the following if pushing the Docker image to a registry
+after_script:
+  - echo "Docker image deployed to ECR and ECS service updated!"
