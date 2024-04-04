@@ -1,0 +1,30 @@
+# pull official base image
+FROM node:18.20.0-buster-slim
+
+# set working directory
+WORKDIR /app
+
+# add app
+COPY . ./
+RUN rm package-lock.json
+
+# add `/app/node_modules/.bin` to $PATH
+ENV PATH /app/node_modules/.bin:$PATH
+
+# install app dependencies
+COPY package.json ./
+RUN npm install
+
+# Define user and group (replace with desired names)
+ARG user=appuser
+ARG group=appgroup
+
+# Create user and group (if they don't exist)
+RUN addgroup --gid 1001 ${group} && useradd ${user} -M -G ${group} -s /bin/bash && chown -R ${user}:${group} /app
+
+# Switch user to the newly created user
+USER ${user}:${group}
+EXPOSE 3000
+
+# Command to run your application
+CMD ["npm", "run", "watch"]

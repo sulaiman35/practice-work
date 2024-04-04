@@ -1,0 +1,40 @@
+# Use an official Maven image as the base image
+FROM maven:3.8.4-openjdk-11-slim AS build
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the pom.xml and the project files to the container
+COPY ./* /app/
+COPY src ./src
+
+# Build the application using Maven
+RUN mvn clean package -DskipTests
+
+## Sonarqube Test need to create sonar-project.properties and add it into pom.xml
+#RUN mv sonar:sonar
+
+# Use an official OpenJDK image as the base image
+FROM adoptopenjdk/openjdk11:alpine-jre AS deploy
+
+# Define user and group (replace with desired names)
+ARG user=appuser
+ARG group=appgroup
+
+# Create user and group (if they don't exist)
+RUN addgroup -g 1001 ${group} && adduser -D -u 1001 -s /bin/bash -G ${group} ${user}
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the built JAR file from the previous stage to the container
+COPY --from=build /app/ .
+RUN mv target/*.jar app.jar
+
+EXPOSE 8080
+
+# Switch user to the newly created user
+USER ${user}:${group}
+
+# Set the command to run the application (with less privileges)
+CMD ["java", "-jar", "app.jar"]
