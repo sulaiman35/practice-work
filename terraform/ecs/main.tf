@@ -158,7 +158,7 @@ resource "aws_security_group" "ecs_sg" {
 
 resource "aws_launch_configuration" "ecs_launch_configuration" {
   name_prefix = var.name_prefix
-  image_id = "ami-09f644e1caad2d877"
+  image_id = "ami-029b91ed285a24a90"
   instance_type = "t2.micro"
   iam_instance_profile = aws_iam_instance_profile.ecs_iam_instance_profile.id
 

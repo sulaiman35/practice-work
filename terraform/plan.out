@@ -504,7 +504,7 @@ Terraform will perform the following actions:
       + enable_monitoring           = true
       + iam_instance_profile        = (known after apply)
       + id                          = (known after apply)
-      + image_id                    = "ami-09f644e1caad2d877"
+      + image_id                    = "ami-029b91ed285a24a90"
       + instance_type               = "t2.micro"
       + key_name                    = "automation-aws"
       + name                        = (known after apply)
