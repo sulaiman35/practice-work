@@ -1,0 +1,64 @@
+stages:
+  - terraform-deploy
+  - verify
+  - destroy  # Only run if verification succeeds
+
+variables:
+  # Replace with your desired AWS region
+  AWS_REGION: "eu-west-1"
+  
+  # Access Terraform Outputs (replace with actual output names)
+  ECS_CLUSTER_NAME: "${CI_ENVIRONMENT_SLUG}-ecs-cluster"  # Assuming output format
+  ECS_SERVICE_NAME: "hello-world-service"
+  LOAD_BALANCER_DNS_NAME: "${TF_OUTPUT_load_balancer_dns_name}"  # Assuming output format
+
+image: hashicorp/terraform:1.3.7  # Terraform image with AWS provider
+
+services:
+  - awscli:latest  # AWS CLI service for verification 
+
+cache:
+  paths:
+    - ~/.terraform.d/plugin  # Cache Terraform plugins
+
+before_script:
+  - cd terraform
+  - terraform init -backend-config=".terraformrc"  # Initialize Terraform with backend config
+  - echo $CI_JOB_TOKEN | AWS configure set aws_access_key_id -
+  - echo $CI_JOB_TOKEN | AWS configure set aws_secret_access_key -
+  - apk add curl  # Install curl for verification
+
+terraform-deploy:
+  stage: terraform-deploy
+  script:
+    - terraform validate  # Validate Terraform configuration
+    - terraform plan -out=plan.out  # Generate a plan
+    - echo "Terraform plan:"
+    - cat plan.out  # Show the generated plan for review (optional)
+    - terraform apply -auto-approve plan.out  # Apply the plan if approved
+
+verify:
+  stage: verify
+  script:
+    - sleep 60  # Wait for service to spin up (adjust based on deployment time)
+    - curl -sSL -o /dev/null $LOAD_BALANCER_DNS_NAME  # Check for successful response
+    - test $? -eq 0  # Check if curl exit code is 0 (success)
+
+  only:
+    - succeeded  # Only run verification if terraform-deploy succeeds
+
+destroy:
+  stage: destroy
+  script:
+    - terraform destroy -force  # Destroy resources
+
+  only:
+    - succeeded  # Only run destroy if verification succeeds
+
+.terraformrc:
+  # Configure Terraform backend (replace with your backend configuration)
+  backend "s3" {
+    bucket = "your-terraform-state-bucket"
+    key    = "path/to/state.tfstate"
+    region = "eu-west-1"
+  }

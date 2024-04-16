@@ -1,0 +1,6 @@
+environment = "dev"
+project_name = "test"
+azure_location = "eastus"
+service_log_ipv4_allow_list = ["80.60.130.136", "80.60.130.137"]
+existing_resource_group = "sulaiman-test1_group"
+virtual_network_address_space = "172.16.0.0/12"
